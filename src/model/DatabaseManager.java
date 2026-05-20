@@ -1,3 +1,5 @@
+package model;
+
 import java.sql.*;
 
 public class DatabaseManager {
@@ -11,8 +13,6 @@ public class DatabaseManager {
     public static void initializeDatabase() {
         try (Connection conn = getConnection();
              Statement stmt = conn.createStatement()) {
-
-            // ========== СУЩЕСТВУЮЩИЕ ТАБЛИЦЫ (НЕ ТРОГАЕМ) ==========
 
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS users (
@@ -41,9 +41,6 @@ public class DatabaseManager {
                     FOREIGN KEY(user_id) REFERENCES users(id),
                     FOREIGN KEY(exercise_id) REFERENCES exercises(id)
                 );""");
-
-
-            // ========== НОВЫЕ ТАБЛИЦЫ ДЛЯ ТЕСТА И ПРОГРАММ ==========
 
             // 1. Таблица вопросов для теста
             stmt.execute("""
@@ -93,13 +90,10 @@ public class DatabaseManager {
                 );""");
 
 
-            // ========== ДОБАВЛЯЕМ НОВЫЕ ПОЛЯ В ТАБЛИЦУ users ==========
-            // Проверяем и добавляем недостающие колонки (для совместимости со старой БД)
             addColumnIfNotExists(stmt, "users", "glasses", "BOOLEAN DEFAULT 0");
             addColumnIfNotExists(stmt, "users", "eye_disease", "TEXT");
             addColumnIfNotExists(stmt, "users", "vision_acuity", "TEXT");
 
-            // ========== РАСШИРЯЕМ ТАБЛИЦУ exercises (новые поля) ==========
             addColumnIfNotExists(stmt, "exercises", "how_to_do", "TEXT DEFAULT ''");
             addColumnIfNotExists(stmt, "exercises", "type", "TEXT DEFAULT 'general'");
             addColumnIfNotExists(stmt, "exercises", "difficulty", "INTEGER DEFAULT 1");
@@ -109,7 +103,6 @@ public class DatabaseManager {
                 fillExtendedExercises(stmt);
             }
 
-            // Заполняем вопросы для теста
             rs = stmt.executeQuery("SELECT COUNT(*) FROM questions");
             if (rs.next() && rs.getInt(1) == 0) {
                 fillQuestions(stmt);
@@ -131,7 +124,6 @@ public class DatabaseManager {
         }
     }
 
-    // Расширенное наполнение упражнениями (до 15+)
     private static void fillExtendedExercises(Statement stmt) throws SQLException {
         String[][] data = {
                 // id 1-5 (старые, обновляем с новыми полями)
@@ -145,8 +137,6 @@ public class DatabaseManager {
                         "Быстро и легко моргайте в течение минуты, не сжимая веки сильно.", "relaxation", "1"},
                 {"Движения по сторонам", "Вверх-вниз, влево-вправо", "45", "Стандартная",
                         "Медленно переводите взгляд вверх, затем вниз. Повторите 10 раз. Затем влево-вправо 10 раз.", "movement", "1"},
-
-                // Новые упражнения 6-15
                 {"Соляризация", "Мягкое привыкание глаз к свету", "30", "Бейтса",
                         "Закройте глаза и поверните лицо к солнцу (или лампе). Медленно поворачивайте голову из стороны в сторону.", "relaxation", "2"},
                 {"Карандашная гимнастика", "Слежение за движущимся предметом", "35", "Аветисова",
@@ -169,7 +159,6 @@ public class DatabaseManager {
                         "Представьте перед собой знак бесконечности (8). Медленно водите глазами по этой траектории.", "movement", "2"}
         };
 
-        // Сначала удаляем старые записи (чтобы избежать дублей)
         stmt.execute("DELETE FROM exercises");
 
         for (String[] ex : data) {
@@ -181,7 +170,6 @@ public class DatabaseManager {
         System.out.println("   Добавлено " + data.length + " упражнений");
     }
 
-    // Заполнение вопросов для теста
     private static void fillQuestions(Statement stmt) throws SQLException {
         String[][] questions = {
                 // Симптомы утомления (category: symptoms)

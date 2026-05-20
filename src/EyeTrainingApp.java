@@ -1,3 +1,5 @@
+import model.DatabaseManager;
+
 import java.sql.*;
 import java.util.Scanner;
 
