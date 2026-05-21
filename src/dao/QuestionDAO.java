@@ -8,22 +8,30 @@ import java.util.List;
 
 public class QuestionDAO {
 
-    // Получить все вопросы
     public List<Question> findAll() throws SQLException {
         List<Question> questions = new ArrayList<>();
         String sql = "SELECT * FROM questions";
+        System.out.println("QuestionDAO: выполняю запрос " + sql);
+
         try (Connection conn = DatabaseManager.getConnection();
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
 
             while (rs.next()) {
-                questions.add(mapResultSetToQuestion(rs));
+                Question question = new Question();
+                question.setId(rs.getInt("id"));
+                question.setQuestionText(rs.getString("question_text"));
+                question.setCategory(rs.getString("category"));
+                question.setWeight(rs.getInt("weight"));
+                question.setOptions(rs.getString("options"));
+                questions.add(question);
+                System.out.println("  Загружен вопрос: " + question.getQuestionText());
             }
         }
+        System.out.println("QuestionDAO: загружено " + questions.size() + " вопросов");
         return questions;
     }
 
-    // Получить вопросы по категории
     public List<Question> findByCategory(String category) throws SQLException {
         List<Question> questions = new ArrayList<>();
         String sql = "SELECT * FROM questions WHERE category = ?";
@@ -40,7 +48,6 @@ public class QuestionDAO {
         return questions;
     }
 
-    // Найти вопрос по ID
     public Question findById(int id) throws SQLException {
         String sql = "SELECT * FROM questions WHERE id = ?";
         try (Connection conn = DatabaseManager.getConnection();

@@ -42,24 +42,6 @@ public class TestService {
     }
 
     /**
-     * Рассчитать нагрузку по отдельной категории
-     * @param answers список ответов пользователя
-     * @param category категория (symptoms, habits, health)
-     * @return балл по категории
-     */
-    public int calculateCategoryLoad(List<Answer> answers, String category) throws SQLException {
-        int categoryScore = 0;
-
-        for (Answer answer : answers) {
-            Question question = questionDAO.findById(answer.getQuestionId());
-            if (question != null && question.getCategory().equals(category)) {
-                categoryScore += answer.getAnswerValue() * question.getWeight();
-            }
-        }
-        return categoryScore;
-    }
-
-    /**
      * Определить уровень нагрузки
      * @param totalScore общий балл
      * @return уровень нагрузки: low, medium, high
@@ -93,24 +75,6 @@ public class TestService {
     }
 
     /**
-     * Проверить, нужно ли срочное вмешательство
-     * @param answers список ответов
-     * @return true если есть тревожные симптомы
-     */
-    public boolean needsUrgentAttention(List<Answer> answers) throws SQLException {
-        for (Answer answer : answers) {
-            Question question = questionDAO.findById(answer.getQuestionId());
-            // Если вопрос о заболеваниях глаз и ответ высокий
-            if (question != null &&
-                    "health".equals(question.getCategory()) &&
-                    answer.getAnswerValue() >= 4) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
      * Сохранить все ответы пользователя в БД
      */
     public void saveAllAnswers(int userId, List<Answer> answers) throws SQLException {
@@ -120,17 +84,4 @@ public class TestService {
         }
     }
 
-    /**
-     * Проверить, проходил ли пользователь тест сегодня
-     */
-    public boolean hasTestToday(int userId) throws SQLException {
-        return answerDAO.hasTestToday(userId);
-    }
-
-    /**
-     * Получить ответы пользователя
-     */
-    public List<Answer> getUserAnswers(int userId) throws SQLException {
-        return answerDAO.findByUserId(userId);
-    }
 }
