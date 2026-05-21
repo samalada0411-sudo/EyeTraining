@@ -29,7 +29,23 @@ public class ProgramDAO {
         }
     }
 
-    // Найти программы пользователя
+    // НАЙТИ ПРОГРАММУ ПО ID (ДОБАВЛЕННЫЙ МЕТОД)
+    public Program findById(int id) throws SQLException {
+        String sql = "SELECT * FROM user_programs WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, id);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                return mapResultSetToProgram(rs);
+            }
+        }
+        return null;
+    }
+
+    // Найти все программы пользователя
     public List<Program> findByUserId(int userId) throws SQLException {
         List<Program> programs = new ArrayList<>();
         String sql = "SELECT * FROM user_programs WHERE user_id = ? ORDER BY generation_date DESC";
@@ -60,6 +76,16 @@ public class ProgramDAO {
             }
         }
         return null;
+    }
+
+    // Удалить программу
+    public void delete(int id) throws SQLException {
+        String sql = "DELETE FROM user_programs WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, id);
+            pstmt.executeUpdate();
+        }
     }
 
     private Program mapResultSetToProgram(ResultSet rs) throws SQLException {
