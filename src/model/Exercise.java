@@ -12,16 +12,6 @@ public class Exercise {
 
     public Exercise() {}
 
-    public Exercise(String name, String description, int duration, String method, String howToDo, String type, int difficulty) {
-        this.name = name;
-        this.description = description;
-        this.duration = duration;
-        this.method = method;
-        this.howToDo = howToDo;
-        this.type = type;
-        this.difficulty = difficulty;
-    }
-
     public int getId() { return id; }
     public void setId(int id) { this.id = id; }
 
@@ -34,7 +24,6 @@ public class Exercise {
     public int getDuration() { return duration; }
     public void setDuration(int duration) { this.duration = duration; }
 
-    public String getMethod() { return method; }
     public void setMethod(String method) { this.method = method; }
 
     public String getHowToDo() { return howToDo; }

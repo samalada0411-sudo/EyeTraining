@@ -1,222 +1,200 @@
 package service;
 
 import model.*;
-import dao.ExerciseDAO;
-import dao.ProgramDAO;
-import dao.ProgramExerciseDAO;
+import dao.*;
+import service.TestService.TestResult;
+import controller.MainController;
 import java.sql.SQLException;
 import java.util.*;
-
-/**
- * Генерацию персонализированной программы тренировок
- * Подбор упражнений на основе нагрузки
- * Расчёт общей длительности программы
- */
 
 public class ProgramGenerator {
 
     private ExerciseDAO exerciseDAO;
     private ProgramDAO programDAO;
     private ProgramExerciseDAO programExerciseDAO;
-    private TestService testService;
 
     public ProgramGenerator() {
         this.exerciseDAO = new ExerciseDAO();
         this.programDAO = new ProgramDAO();
         this.programExerciseDAO = new ProgramExerciseDAO();
-        this.testService = new TestService();
     }
 
-    /**
-     * Сгенерировать персонализированную программу на основе ответов пользователя
-     */
-    public Program generatePersonalizedProgram(int userId, List<Answer> answers) throws SQLException {
-        // 1. Рассчитываем нагрузку
-        int totalScore = testService.calculateTotalLoad(answers);
-        String loadLevel = testService.getLoadLevel(totalScore);
-        String recommendedType = testService.getRecommendedExerciseType(loadLevel);
+    public Program generateProgram(int userId, TestResult testResult) throws SQLException {
+        String recommendedType = getRecommendedType(testResult.getLoadLevel());
+        List<Exercise> selectedExercises = selectExercisesByLoad(recommendedType, testResult.getLoadLevel());
 
-        System.out.println("   DEBUG: loadLevel=" + loadLevel + ", recommendedType=" + recommendedType);
-
-        // 2. Подбираем упражнения
-        List<Exercise> selectedExercises = selectExercisesByLoad(recommendedType, loadLevel);
-
-        System.out.println("   DEBUG: выбрано упражнений: " + selectedExercises.size());
-        for (Exercise ex : selectedExercises) {
-            System.out.println("      - " + (ex != null ? ex.getName() : "NULL!"));
-        }
-
-        // 3. Создаём программу
         int totalDuration = calculateTotalDuration(selectedExercises);
         Program program = new Program(userId, "personalized", true, totalDuration);
         programDAO.save(program);
 
-        // 4. Сохраняем упражнения в программе
         int orderNum = 1;
-        for (Exercise exercise : selectedExercises) {
-            if (exercise != null) {
-                ProgramExercise pe = new ProgramExercise(
-                        program.getId(),
-                        exercise.getId(),
-                        exercise.getDuration(),
-                        getRepeatsByLoad(loadLevel),
-                        orderNum++
-                );
-                programExerciseDAO.save(pe);
-            }
+        for (Exercise ex : selectedExercises) {
+            ProgramExercise pe = new ProgramExercise(
+                    program.getId(), ex.getId(), ex.getDuration(),
+                    getRepeatsByLoad(testResult.getLoadLevel()), orderNum++
+            );
+            programExerciseDAO.save(pe);
         }
 
         return program;
     }
 
-    /**
-     * Сгенерировать готовую программу по названию
-     */
     public Program generatePresetProgram(int userId, String presetName) throws SQLException {
         List<Exercise> selectedExercises = getPresetExercises(presetName);
-
         int totalDuration = calculateTotalDuration(selectedExercises);
+
         Program program = new Program(userId, presetName, false, totalDuration);
         programDAO.save(program);
 
         int orderNum = 1;
-        for (Exercise exercise : selectedExercises) {
-            if (exercise != null) {
-                ProgramExercise pe = new ProgramExercise(
-                        program.getId(),
-                        exercise.getId(),
-                        exercise.getDuration(),
-                        1,
-                        orderNum++
-                );
-                programExerciseDAO.save(pe);
-            }
+        for (Exercise ex : selectedExercises) {
+            ProgramExercise pe = new ProgramExercise(program.getId(), ex.getId(), ex.getDuration(), 1, orderNum++);
+            programExerciseDAO.save(pe);
         }
 
         return program;
     }
 
-    /**
-     * Подбор упражнений на основе уровня нагрузки
-     */
-    private List<Exercise> selectExercisesByLoad(String recommendedType, String loadLevel) throws SQLException {
+    public Program getLatestProgram(int userId) throws SQLException {
+        return programDAO.findLatestByUserId(userId);
+    }
+
+    public List<MainController.ExerciseData> getProgramExercisesForDisplay(int programId) throws SQLException {
+        List<ProgramExercise> programExercises = programExerciseDAO.findByProgramId(programId);
+        List<MainController.ExerciseData> exerciseData = new ArrayList<>();
+
+        for (ProgramExercise pe : programExercises) {
+            Exercise ex = exerciseDAO.findById(pe.getExerciseId());
+            if (ex != null) {
+                exerciseData.add(new MainController.ExerciseData(
+                        ex.getName(),
+                        ex.getDescription(),
+                        ex.getHowToDo(),
+                        ex.getDuration(),
+                        getTypeName(ex.getType()),
+                        ex.getDifficulty()
+                ));
+            }
+        }
+
+        return exerciseData;
+    }
+
+    public List<MainController.PresetExerciseInfo> getPresetProgramDetails(String presetName) throws SQLException {
+        List<MainController.PresetExerciseInfo> result = new ArrayList<>();
+
+        int[] exerciseIds;
+        String[] instructions;
+
+        switch (presetName) {
+            case "Быстрая зарядка":
+                exerciseIds = new int[]{4, 3, 5};
+                instructions = new String[]{
+                        "Быстро и легко моргайте в течение минуты",
+                        "Смотрите на палец (15 см) 5 сек, затем вдаль 5 сек",
+                        "Переводите взгляд вверх-вниз 10 раз, затем влево-вправо 10 раз"
+                };
+                break;
+            case "Полная релаксация":
+                exerciseIds = new int[]{1, 6, 10, 12};
+                instructions = new String[]{
+                        "Потрите ладони, закройте глаза и накройте их ладонями",
+                        "Закройте глаза, поверните лицо к солнцу, медленно поворачивайте голову",
+                        "Круговыми движениями массируйте закрытые веки",
+                        "Смотрите вдаль 30 сек, затем на ближний предмет 10 сек"
+                };
+                break;
+            case "Для работы за ПК":
+                exerciseIds = new int[]{3, 5, 7, 14};
+                instructions = new String[]{
+                        "Смотрите на палец (15 см) 5 сек, затем вдаль 5 сек",
+                        "Переводите взгляд вверх-вниз 10 раз, затем влево-вправо 10 раз",
+                        "Приближайте карандаш к носу, следя глазами, затем отводите",
+                        "Переводите взгляд вверх-вправо -> вниз-влево, затем вверх-влево -> вниз-вправо"
+                };
+                break;
+            default:
+                return result;
+        }
+
+        for (int i = 0; i < exerciseIds.length; i++) {
+            Exercise ex = exerciseDAO.findById(exerciseIds[i]);
+            if (ex != null) {
+                result.add(new MainController.PresetExerciseInfo(ex.getName(), instructions[i]));
+            }
+        }
+
+        return result;
+    }
+
+    private String getRecommendedType(String loadLevel) {
+        switch (loadLevel) {
+            case "low": return "relaxation";
+            case "medium": return "focus";
+            case "high": return "movement";
+            default: return "relaxation";
+        }
+    }
+
+    private List<Exercise> selectExercisesByLoad(String type, String loadLevel) throws SQLException {
         List<Exercise> selected = new ArrayList<>();
 
-        // Базовые упражнения (всегда добавляем, с проверкой на существование)
-        Exercise palm = exerciseDAO.findById(1);      // Пальминг
-        Exercise blink = exerciseDAO.findById(4);     // Частое моргание
+        addIfExists(selected, 1);
+        addIfExists(selected, 4);
 
-        if (palm != null) selected.add(palm);
-        if (blink != null) selected.add(blink);
-
-        // Добавляем упражнения по типу
-        List<Exercise> typeExercises = exerciseDAO.findByType(recommendedType);
-        System.out.println("   DEBUG: найдено упражнений типа " + recommendedType + ": " + typeExercises.size());
-
-        if (!typeExercises.isEmpty()) {
-            // Берём 2-3 упражнения из подходящего типа
-            int count = "high".equals(loadLevel) ? 3 : 2;
-            for (int i = 0; i < count && i < typeExercises.size(); i++) {
-                Exercise ex = typeExercises.get(i);
-                if (ex != null && !containsExercise(selected, ex.getId())) {
-                    selected.add(ex);
-                }
+        List<Exercise> typeExercises = exerciseDAO.findByType(type);
+        int count = "high".equals(loadLevel) ? 3 : 2;
+        for (int i = 0; i < count && i < typeExercises.size(); i++) {
+            if (!containsId(selected, typeExercises.get(i).getId())) {
+                selected.add(typeExercises.get(i));
             }
         }
 
-        // Если не нашли упражнений по типу, добавляем альтернативные
-        if (selected.size() < 3) {
-            addFallbackExercises(selected);
-        }
-
-        // При высокой нагрузке добавляем массаж
         if ("high".equals(loadLevel)) {
-            List<Exercise> massage = exerciseDAO.findByType("massage");
-            if (!massage.isEmpty()) {
-                Exercise m = massage.get(0);
-                if (m != null && !containsExercise(selected, m.getId())) {
-                    selected.add(m);
-                }
-            }
+            addIfExists(selected, 10);
         }
 
         return selected;
     }
 
-    /**
-     * Добавить альтернативные упражнения (если не нашли по типу)
-     */
-    private void addFallbackExercises(List<Exercise> selected) throws SQLException {
-        int[] fallbackIds = {3, 5, 7}; // Смена фокуса, Движения по сторонам, Карандашная гимнастика
-        for (int id : fallbackIds) {
-            if (selected.size() >= 4) break;
-            Exercise ex = exerciseDAO.findById(id);
-            if (ex != null && !containsExercise(selected, ex.getId())) {
-                selected.add(ex);
-            }
-        }
-    }
-
-    /**
-     * Проверить, есть ли уже упражнение в списке
-     */
-    private boolean containsExercise(List<Exercise> list, int id) {
-        for (Exercise ex : list) {
-            if (ex != null && ex.getId() == id) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Получить упражнения для готовой программы
-     */
     private List<Exercise> getPresetExercises(String presetName) throws SQLException {
         List<Exercise> exercises = new ArrayList<>();
 
         switch (presetName) {
             case "Быстрая зарядка":
-                addIfExists(exercises, 4);  // Частое моргание
-                addIfExists(exercises, 3);  // Смена фокуса
-                addIfExists(exercises, 5);  // Движения по сторонам
+                addIfExists(exercises, 4);
+                addIfExists(exercises, 3);
+                addIfExists(exercises, 5);
                 break;
             case "Полная релаксация":
-                addIfExists(exercises, 1);  // Пальминг
-                addIfExists(exercises, 6);  // Соляризация
-                addIfExists(exercises, 8);  // Массаж век
-                addIfExists(exercises, 9);  // Взгляд вдаль
+                addIfExists(exercises, 1);
+                addIfExists(exercises, 6);
+                addIfExists(exercises, 10);
+                addIfExists(exercises, 12);
                 break;
             case "Для работы за ПК":
-                addIfExists(exercises, 3);  // Смена фокуса
-                addIfExists(exercises, 5);  // Движения по сторонам
-                addIfExists(exercises, 7);  // Карандашная гимнастика
-                addIfExists(exercises, 10); // Диагонали
-                break;
-            default:
-                addIfExists(exercises, 1);
                 addIfExists(exercises, 3);
-                addIfExists(exercises, 4);
+                addIfExists(exercises, 5);
+                addIfExists(exercises, 7);
+                addIfExists(exercises, 14);
+                break;
         }
 
         return exercises;
     }
 
-    /**
-     * Добавить упражнение в список, если оно существует в БД
-     */
     private void addIfExists(List<Exercise> list, int id) throws SQLException {
         Exercise ex = exerciseDAO.findById(id);
-        if (ex != null) {
-            list.add(ex);
-        } else {
-            System.out.println("   WARNING: Упражнение с ID=" + id + " не найдено в БД!");
-        }
+        if (ex != null) list.add(ex);
     }
 
-    /**
-     * Количество повторов в зависимости от нагрузки
-     */
+    private boolean containsId(List<Exercise> list, int id) {
+        for (Exercise ex : list) {
+            if (ex.getId() == id) return true;
+        }
+        return false;
+    }
+
     private int getRepeatsByLoad(String loadLevel) {
         switch (loadLevel) {
             case "low": return 1;
@@ -226,55 +204,21 @@ public class ProgramGenerator {
         }
     }
 
-    /**
-     * Рассчитать общую длительность программы
-     */
     private int calculateTotalDuration(List<Exercise> exercises) {
         int total = 0;
         for (Exercise ex : exercises) {
-            if (ex != null) {
-                total += ex.getDuration();
-            }
+            total += ex.getDuration();
         }
         return total;
     }
 
-    /**
-     * Получить программу с её упражнениями (для отображения)
-     */
-    public ProgramWithExercises getProgramWithExercises(int programId) throws SQLException {
-        Program program = programDAO.findById(programId);
-        if (program == null) return null;
-
-        List<ProgramExercise> programExercises = programExerciseDAO.findByProgramId(programId);
-        List<Exercise> exercises = new ArrayList<>();
-
-        for (ProgramExercise pe : programExercises) {
-            Exercise ex = exerciseDAO.findById(pe.getExerciseId());
-            if (ex != null) {
-                exercises.add(ex);
-            }
+    private String getTypeName(String type) {
+        switch (type) {
+            case "relaxation": return "Расслабляющее";
+            case "focus": return "Фокусировка";
+            case "movement": return "Движение";
+            case "massage": return "Массаж";
+            default: return type;
         }
-
-        return new ProgramWithExercises(program, exercises, programExercises);
-    }
-
-    /**
-     * Вспомогательный класс для возврата программы с упражнениями
-     */
-    public static class ProgramWithExercises {
-        private Program program;
-        private List<Exercise> exercises;
-        private List<ProgramExercise> programExercises;
-
-        public ProgramWithExercises(Program program, List<Exercise> exercises, List<ProgramExercise> programExercises) {
-            this.program = program;
-            this.exercises = exercises;
-            this.programExercises = programExercises;
-        }
-
-        public Program getProgram() { return program; }
-        public List<Exercise> getExercises() { return exercises; }
-        public List<ProgramExercise> getProgramExercises() { return programExercises; }
     }
 }

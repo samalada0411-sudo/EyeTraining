@@ -3,7 +3,6 @@ package view;
 import controller.MainController;
 import view.components.RoundedPanel;
 import view.components.StyledButton;
-import model.Exercise;
 import javax.swing.*;
 import java.awt.*;
 import java.util.List;
@@ -21,7 +20,6 @@ public class ProgramPanel extends JPanel {
         setLayout(new BorderLayout());
         setBackground(Colors.BACKGROUND);
         setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-
         initUI();
     }
 
@@ -85,6 +83,10 @@ public class ProgramPanel extends JPanel {
         add(bottomPanel, BorderLayout.SOUTH);
     }
 
+    public void setController(MainController controller) {
+        this.controller = controller;
+    }
+
     public void showEmptyState() {
         programContentPanel.removeAll();
 
@@ -117,39 +119,28 @@ public class ProgramPanel extends JPanel {
         programContentPanel.repaint();
     }
 
-    public void resetLoadLevel() {
-        loadLevelLabel.setText("Уровень нагрузки: не определён");
-        loadLevelLabel.setForeground(Colors.TEXT_SECONDARY);
-        totalDurationLabel.setText("Общая длительность: 0 сек");
-        scoreLabel.setText(" ");
-    }
-
-    public void updateLoadLevel(String loadLevel, int totalScore) {
-        String text;
-        Color color;
-        switch (loadLevel) {
-            case "low":
-                text = "Уровень нагрузки: НИЗКИЙ";
-                color = Colors.STATUS_LOW;
-                break;
-            case "medium":
-                text = "Уровень нагрузки: СРЕДНИЙ";
-                color = Colors.STATUS_MEDIUM;
-                break;
-            default:
-                text = "Уровень нагрузки: ВЫСОКИЙ";
-                color = Colors.STATUS_HIGH;
-        }
-        loadLevelLabel.setText(text);
-        loadLevelLabel.setForeground(color);
-        scoreLabel.setText("Общий балл: " + totalScore);
-    }
-
-    public void displayProgram(List<Exercise> exercises, String loadLevel, int totalDuration) {
+    public void displayProgram(List<MainController.ExerciseData> exercises, String loadLevel, int totalDuration, int totalScore) {
         programContentPanel.removeAll();
 
-        updateLoadLevel(loadLevel, 0);
+        String levelText;
+        Color levelColor;
+        switch (loadLevel) {
+            case "low":
+                levelText = "Уровень нагрузки: НИЗКИЙ";
+                levelColor = Colors.STATUS_LOW;
+                break;
+            case "medium":
+                levelText = "Уровень нагрузки: СРЕДНИЙ";
+                levelColor = Colors.STATUS_MEDIUM;
+                break;
+            default:
+                levelText = "Уровень нагрузки: ВЫСОКИЙ";
+                levelColor = Colors.STATUS_HIGH;
+        }
+        loadLevelLabel.setText(levelText);
+        loadLevelLabel.setForeground(levelColor);
         totalDurationLabel.setText("Общая длительность: " + totalDuration + " сек (" + (totalDuration / 60) + " мин)");
+        scoreLabel.setText("Общий балл: " + totalScore);
 
         JLabel exercisesTitle = new JLabel("Упражнения:");
         exercisesTitle.setFont(Colors.TITLE_FONT);
@@ -158,7 +149,7 @@ public class ProgramPanel extends JPanel {
         programContentPanel.add(exercisesTitle);
 
         int order = 1;
-        for (Exercise ex : exercises) {
+        for (MainController.ExerciseData ex : exercises) {
             programContentPanel.add(createExerciseCard(ex, order++));
             programContentPanel.add(Box.createVerticalStrut(10));
         }
@@ -167,7 +158,7 @@ public class ProgramPanel extends JPanel {
         programContentPanel.repaint();
     }
 
-    private JPanel createExerciseCard(Exercise ex, int order) {
+    private JPanel createExerciseCard(MainController.ExerciseData ex, int order) {
         RoundedPanel card = new RoundedPanel(10, Colors.PANEL_BACKGROUND, Colors.BORDER, 1);
         card.setLayout(new BorderLayout());
         card.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
@@ -183,11 +174,11 @@ public class ProgramPanel extends JPanel {
         JPanel titlePanel = new JPanel(new GridLayout(2, 1));
         titlePanel.setOpaque(false);
 
-        JLabel nameLabel = new JLabel(ex.getName());
+        JLabel nameLabel = new JLabel(ex.name);
         nameLabel.setFont(Colors.TITLE_FONT);
         nameLabel.setForeground(Colors.TEXT_PRIMARY);
 
-        JLabel typeLabel = new JLabel(getTypeName(ex.getType()) + " | " + ex.getDuration() + " секунд");
+        JLabel typeLabel = new JLabel(ex.type + " | " + ex.duration + " секунд");
         typeLabel.setFont(Colors.SMALL_FONT);
         typeLabel.setForeground(Colors.TEXT_SECONDARY);
 
@@ -197,9 +188,9 @@ public class ProgramPanel extends JPanel {
         leftPanel.add(numberLabel, BorderLayout.WEST);
         leftPanel.add(titlePanel, BorderLayout.CENTER);
 
-        JLabel difficultyLabel = new JLabel("Сложность: " + getDifficultyStars(ex.getDifficulty()));
+        JLabel difficultyLabel = new JLabel("Сложность: " + getDifficultyStars(ex.difficulty));
         difficultyLabel.setFont(Colors.SMALL_FONT);
-        difficultyLabel.setForeground(getDifficultyColor(ex.getDifficulty()));
+        difficultyLabel.setForeground(getDifficultyColor(ex.difficulty));
 
         card.add(leftPanel, BorderLayout.WEST);
         card.add(difficultyLabel, BorderLayout.EAST);
@@ -208,11 +199,11 @@ public class ProgramPanel extends JPanel {
         descriptionPanel.setOpaque(false);
         descriptionPanel.setBorder(BorderFactory.createEmptyBorder(10, 30, 0, 0));
 
-        JLabel descLabel = new JLabel(ex.getDescription());
+        JLabel descLabel = new JLabel(ex.description);
         descLabel.setFont(Colors.SMALL_FONT);
         descLabel.setForeground(Colors.TEXT_SECONDARY);
 
-        JLabel howLabel = new JLabel(ex.getHowToDo());
+        JLabel howLabel = new JLabel(ex.howToDo);
         howLabel.setFont(Colors.SMALL_FONT);
         howLabel.setForeground(Colors.TEXT_SECONDARY);
 
@@ -222,16 +213,6 @@ public class ProgramPanel extends JPanel {
         card.add(descriptionPanel, BorderLayout.SOUTH);
 
         return card;
-    }
-
-    private String getTypeName(String type) {
-        switch (type) {
-            case "relaxation": return "Расслабляющее";
-            case "focus": return "Фокусировка";
-            case "movement": return "Движение";
-            case "massage": return "Массаж";
-            default: return type;
-        }
     }
 
     private String getDifficultyStars(int difficulty) {
@@ -248,9 +229,5 @@ public class ProgramPanel extends JPanel {
             case 3: return Colors.STATUS_HIGH;
             default: return Colors.TEXT_SECONDARY;
         }
-    }
-
-    public void setController(MainController controller) {
-        this.controller = controller;
     }
 }

@@ -1,272 +1,313 @@
 package controller;
 
-import model.*;
-import dao.*;
-import service.*;
-import view.Colors;
-import view.MainFrame;
-import view.TestPanel;
-import javax.swing.*;
-import java.awt.Color;
+import model.TestHistoryEntry;
+import model.User;
+import model.Question;
+import model.Program;
+import service.TestService;
+import service.ProgramGenerator;
+import service.UserService;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class MainController {
 
-    private MainFrame view;
     private User currentUser;
-    private UserDAO userDAO;
-    private QuestionDAO questionDAO;
-    private AnswerDAO answerDAO;
-    private ProgramDAO programDAO;
-    private ProgramExerciseDAO programExerciseDAO;
     private TestService testService;
     private ProgramGenerator programGenerator;
+    private UserService userService;
 
-    // Храним последнюю сгенерированную программу и уровень нагрузки для текущего пользователя
-    private Program lastProgram;
-    private String lastLoadLevel;
-    private int lastTotalLoad;
+    public static class QuestionData {
+        public final int id;
+        public final String text;
+        public final String category;
+        public final String[] options;
 
-    public MainController(MainFrame view) {
-        this.view = view;
-        this.userDAO = new UserDAO();
-        this.questionDAO = new QuestionDAO();
-        this.answerDAO = new AnswerDAO();
-        this.programDAO = new ProgramDAO();
-        this.programExerciseDAO = new ProgramExerciseDAO();
+        public QuestionData(int id, String text, String category, String[] options) {
+            this.id = id;
+            this.text = text;
+            this.category = category;
+            this.options = options;
+        }
+    }
+
+    public static class ExerciseData {
+        public final String name;
+        public final String description;
+        public final String howToDo;
+        public final int duration;
+        public final String type;
+        public final int difficulty;
+
+        public ExerciseData(String name, String description, String howToDo, int duration, String type, int difficulty) {
+            this.name = name;
+            this.description = description;
+            this.howToDo = howToDo;
+            this.duration = duration;
+            this.type = type;
+            this.difficulty = difficulty;
+        }
+    }
+
+    public static class PresetExerciseInfo {
+        public final String name;
+        public final String instruction;
+
+        public PresetExerciseInfo(String name, String instruction) {
+            this.name = name;
+            this.instruction = instruction;
+        }
+    }
+
+    public interface ViewListener {
+        void onQuestionsLoaded(List<QuestionData> questions);
+        void onProgramDisplayed(List<ExerciseData> exercises, String loadLevel, int totalDuration, int totalScore);
+        void onShowEmptyProgram();
+        void onShowMessage(String title, String message, boolean isError);
+        void onShowPresetProgramDetails(String programName, List<PresetExerciseInfo> exercises);
+        void onShowTestHistory(List<TestHistoryEntry> history);
+    }
+
+    private ViewListener viewListener;
+
+    public MainController() {
         this.testService = new TestService();
         this.programGenerator = new ProgramGenerator();
+        this.userService = new UserService();
+    }
+
+    public void setViewListener(ViewListener listener) {
+        this.viewListener = listener;
     }
 
     public void setCurrentUser(User user) {
         this.currentUser = user;
-        System.out.println("Выбран пользователь: " + user.getName() + " (ID=" + user.getId() + ")");
-
-        // Загружаем данные пользователя из БД
         loadUserData();
     }
 
-    private void loadUserData() {
-        if (currentUser == null) return;
-
+    public List<User> getAllUsers() {
         try {
-            // 1. Загружаем последние ответы пользователя
-            List<Answer> answers = answerDAO.findByUserId(currentUser.getId());
-
-            if (answers != null && !answers.isEmpty()) {
-                // Есть ответы - рассчитываем нагрузку
-                lastTotalLoad = testService.calculateTotalLoad(answers);
-                lastLoadLevel = testService.getLoadLevel(lastTotalLoad);
-                System.out.println("  Загружены ответы, нагрузка: " + lastTotalLoad + " (" + lastLoadLevel + ")");
-            } else {
-                lastTotalLoad = 0;
-                lastLoadLevel = null;
-                System.out.println("  Нет сохранённых ответов");
-            }
-
-            // 2. Загружаем последнюю программу пользователя
-            lastProgram = programDAO.findLatestByUserId(currentUser.getId());
-
-            if (lastProgram != null) {
-                // Загружаем упражнения программы
-                ProgramGenerator.ProgramWithExercises programWithEx =
-                        programGenerator.getProgramWithExercises(lastProgram.getId());
-
-                if (programWithEx != null && lastLoadLevel != null) {
-                    // Отображаем программу
-                    view.getProgramPanel().displayProgram(
-                            programWithEx.getExercises(),
-                            lastLoadLevel,
-                            lastProgram.getTotalDuration()
-                    );
-                    System.out.println("  Загружена последняя программа (ID=" + lastProgram.getId() + ")");
-                } else {
-                    view.getProgramPanel().showEmptyState();
-                }
-            } else {
-                view.getProgramPanel().showEmptyState();
-                System.out.println("  Нет сохранённых программ");
-            }
-
-            // 3. Обновляем отображение уровня нагрузки на панели программы
-            if (lastLoadLevel != null) {
-                view.getProgramPanel().updateLoadLevel(lastLoadLevel, lastTotalLoad);
-            } else {
-                view.getProgramPanel().resetLoadLevel();
-            }
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public List<Question> getQuestions() {
-        try {
-            return questionDAO.findAll();
+            return userService.getAllUsers();
         } catch (SQLException e) {
             e.printStackTrace();
             return new ArrayList<>();
         }
     }
 
+    public void addUser(String name, int age) {
+        try {
+            userService.addUser(name, age);
+            if (viewListener != null) {
+                viewListener.onShowMessage("Успех", "Пользователь добавлен", false);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            if (viewListener != null) {
+                viewListener.onShowMessage("Ошибка", "Не удалось добавить пользователя", true);
+            }
+        }
+    }
+
+    private void loadUserData() {
+        if (currentUser == null) return;
+
+        try {
+            TestService.TestResult result = testService.getUserTestResult(currentUser.getId());
+
+            if (result != null && result.hasAnswers()) {
+                Program program = programGenerator.getLatestProgram(currentUser.getId());
+
+                if (program != null) {
+                    List<ExerciseData> exercises = programGenerator.getProgramExercisesForDisplay(program.getId());
+                    if (viewListener != null && exercises != null && !exercises.isEmpty()) {
+                        viewListener.onProgramDisplayed(
+                                exercises,
+                                result.getLoadLevel(),
+                                program.getTotalDuration(),
+                                result.getTotalScore()
+                        );
+                    } else {
+                        viewListener.onShowEmptyProgram();
+                    }
+                } else {
+                    Program newProgram = programGenerator.generateProgram(currentUser.getId(), result);
+                    List<ExerciseData> exercises = programGenerator.getProgramExercisesForDisplay(newProgram.getId());
+                    if (viewListener != null && exercises != null) {
+                        viewListener.onProgramDisplayed(
+                                exercises,
+                                result.getLoadLevel(),
+                                newProgram.getTotalDuration(),
+                                result.getTotalScore()
+                        );
+                    }
+                }
+            } else {
+                if (viewListener != null) {
+                    viewListener.onShowEmptyProgram();
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            if (viewListener != null) {
+                viewListener.onShowEmptyProgram();
+            }
+        }
+    }
+
+    public void loadQuestions() {
+        try {
+            List<Question> questions = testService.getAllQuestions();
+            List<QuestionData> questionDataList = new ArrayList<>();
+            for (Question q : questions) {
+                questionDataList.add(new QuestionData(
+                        q.getId(),
+                        q.getQuestionText(),
+                        q.getCategory(),
+                        q.getOptionsArray()
+                ));
+            }
+            if (viewListener != null) {
+                viewListener.onQuestionsLoaded(questionDataList);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
     public void submitTest(List<Integer> answerValues) {
         if (currentUser == null) {
-            showMessage("Ошибка", "Пользователь не выбран", "error");
+            if (viewListener != null) {
+                viewListener.onShowMessage("Ошибка", "Пользователь не выбран", true);
+            }
             return;
         }
 
         try {
-            List<Question> questions = questionDAO.findAll();
-            List<Answer> answers = new ArrayList<>();
+            testService.saveAnswers(currentUser.getId(), answerValues);
+            TestService.TestResult result = testService.calculateTestResult(currentUser.getId(), answerValues);
 
-            for (int i = 0; i < questions.size() && i < answerValues.size(); i++) {
-                Answer answer = new Answer(currentUser.getId(), questions.get(i).getId(), answerValues.get(i));
-                answers.add(answer);
-            }
+            Program program = programGenerator.generateProgram(currentUser.getId(), result);
+            List<ExerciseData> exercises = programGenerator.getProgramExercisesForDisplay(program.getId());
 
-            // Удаляем старые ответы пользователя и сохраняем новые
-            // (для простоты - удалим старые, потом сохраним новые)
-            // В реальном проекте лучше обновлять
-
-            testService.saveAllAnswers(currentUser.getId(), answers);
-
-            lastTotalLoad = testService.calculateTotalLoad(answers);
-            lastLoadLevel = testService.getLoadLevel(lastTotalLoad);
-
-            // Генерируем и сохраняем программу
-            lastProgram = programGenerator.generatePersonalizedProgram(currentUser.getId(), answers);
-
-            // Отображаем программу
-            ProgramGenerator.ProgramWithExercises programWithEx =
-                    programGenerator.getProgramWithExercises(lastProgram.getId());
-
-            if (programWithEx != null) {
-                view.getProgramPanel().displayProgram(
-                        programWithEx.getExercises(),
-                        lastLoadLevel,
-                        lastProgram.getTotalDuration()
+            if (viewListener != null && exercises != null) {
+                viewListener.onProgramDisplayed(
+                        exercises,
+                        result.getLoadLevel(),
+                        program.getTotalDuration(),
+                        result.getTotalScore()
                 );
+                viewListener.onShowMessage("Успех", "Тест пройден! Программа сгенерирована", false);
             }
-
-            showMessage("Успех!",
-                    "Тест пройден!\nУровень нагрузки: " + getLoadLevelText(lastLoadLevel) +
-                            "\nСгенерирована программа тренировок", "success");
-
-            // Переключаемся на вкладку программы
-            JTabbedPane tabbedPane = (JTabbedPane) view.getContentPane().getComponent(1);
-            tabbedPane.setSelectedIndex(1);
 
         } catch (SQLException e) {
             e.printStackTrace();
-            showMessage("Ошибка", "Не удалось сохранить результаты теста: " + e.getMessage(), "error");
+            if (viewListener != null) {
+                viewListener.onShowMessage("Ошибка", "Не удалось сохранить результаты", true);
+            }
         }
     }
 
     public void generateNewProgram() {
         if (currentUser == null) {
-            showMessage("Ошибка", "Пользователь не выбран", "error");
+            if (viewListener != null) {
+                viewListener.onShowMessage("Ошибка", "Пользователь не выбран", true);
+            }
             return;
         }
 
         try {
-            List<Answer> answers = answerDAO.findByUserId(currentUser.getId());
+            TestService.TestResult result = testService.getUserTestResult(currentUser.getId());
 
-            if (answers.isEmpty()) {
-                int result = JOptionPane.showConfirmDialog(null,
-                        "Вы ещё не проходили тест.\nСгенерировать программу на основе стандартных параметров?",
-                        "Нет теста",
-                        JOptionPane.YES_NO_OPTION);
-                if (result != JOptionPane.YES_OPTION) {
-                    return;
+            if (result == null || !result.hasAnswers()) {
+                if (viewListener != null) {
+                    viewListener.onShowMessage("Нет теста", "Сначала пройдите тест-опросник", true);
                 }
-                generateDefaultProgram();
                 return;
             }
 
-            // Используем сохранённые ответы
-            lastTotalLoad = testService.calculateTotalLoad(answers);
-            lastLoadLevel = testService.getLoadLevel(lastTotalLoad);
+            Program program = programGenerator.generateProgram(currentUser.getId(), result);
+            List<ExerciseData> exercises = programGenerator.getProgramExercisesForDisplay(program.getId());
 
-            lastProgram = programGenerator.generatePersonalizedProgram(currentUser.getId(), answers);
-
-            ProgramGenerator.ProgramWithExercises programWithEx =
-                    programGenerator.getProgramWithExercises(lastProgram.getId());
-
-            if (programWithEx != null) {
-                view.getProgramPanel().displayProgram(
-                        programWithEx.getExercises(),
-                        lastLoadLevel,
-                        lastProgram.getTotalDuration()
+            if (viewListener != null && exercises != null) {
+                viewListener.onProgramDisplayed(
+                        exercises,
+                        result.getLoadLevel(),
+                        program.getTotalDuration(),
+                        result.getTotalScore()
                 );
+                viewListener.onShowMessage("Готово", "Новая программа сгенерирована", false);
             }
-
-            showMessage("Готово", "Сгенерирована новая программа тренировок", "success");
 
         } catch (SQLException e) {
             e.printStackTrace();
-            showMessage("Ошибка", "Не удалось сгенерировать программу", "error");
+            if (viewListener != null) {
+                viewListener.onShowMessage("Ошибка", "Не удалось сгенерировать программу", true);
+            }
         }
     }
 
-    private void generateDefaultProgram() {
-        try {
-            selectPresetProgram("Быстрая зарядка");
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    public void selectPresetProgram(String presetName) {
+    public void selectPresetProgram(String programName) {
         if (currentUser == null) {
-            showMessage("Ошибка", "Пользователь не выбран", "error");
+            if (viewListener != null) {
+                viewListener.onShowMessage("Ошибка", "Пользователь не выбран", true);
+            }
             return;
         }
 
         try {
-            lastProgram = programGenerator.generatePresetProgram(currentUser.getId(), presetName);
+            Program program = programGenerator.generatePresetProgram(currentUser.getId(), programName);
+            List<ExerciseData> exercises = programGenerator.getProgramExercisesForDisplay(program.getId());
 
-            // Загружаем упражнения программы для отображения
-            ProgramGenerator.ProgramWithExercises programWithEx =
-                    programGenerator.getProgramWithExercises(lastProgram.getId());
-
-            if (programWithEx != null) {
-                view.getProgramPanel().displayProgram(
-                        programWithEx.getExercises(),
+            if (viewListener != null && exercises != null) {
+                viewListener.onProgramDisplayed(
+                        exercises,
                         "medium",
-                        lastProgram.getTotalDuration()
+                        program.getTotalDuration(),
+                        50
                 );
-                // Сохраняем уровень нагрузки как средний для готовой программы
-                lastLoadLevel = "medium";
-                lastTotalLoad = 50;
+                viewListener.onShowMessage("Готово", "Программа \"" + programName + "\" добавлена", false);
             }
-
-            showMessage("Готово", "Программа \"" + presetName + "\" добавлена в раздел \"Моя программа\"", "success");
-
-            // Переключаемся на вкладку программы
-            JTabbedPane tabbedPane = (JTabbedPane) view.getContentPane().getComponent(1);
-            tabbedPane.setSelectedIndex(1);
 
         } catch (SQLException e) {
             e.printStackTrace();
-            showMessage("Ошибка", "Не удалось создать программу", "error");
+            if (viewListener != null) {
+                viewListener.onShowMessage("Ошибка", "Не удалось создать программу", true);
+            }
         }
     }
 
-    private String getLoadLevelText(String loadLevel) {
-        switch (loadLevel) {
-            case "low": return "Низкий (рекомендуются расслабляющие упражнения)";
-            case "medium": return "Средний (рекомендуются упражнения на фокусировку)";
-            case "high": return "Высокий (рекомендуются активные движения и массаж)";
-            default: return loadLevel;
+    public void showPresetProgramDetails(String programName) {
+        try {
+            List<PresetExerciseInfo> exercises = programGenerator.getPresetProgramDetails(programName);
+            if (viewListener != null) {
+                viewListener.onShowPresetProgramDetails(programName, exercises);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            if (viewListener != null) {
+                viewListener.onShowMessage("Ошибка", "Не удалось загрузить программу", true);
+            }
         }
     }
 
-    private void showMessage(String title, String message, String type) {
-        TestPanel testPanel = view.getTestPanel();
-        Color color = type.equals("success") ? Colors.ACCENT : Colors.DANGER;
-        testPanel.showStatus(message, color);
-        JOptionPane.showMessageDialog(view, message, title, JOptionPane.INFORMATION_MESSAGE);
+    public void showTestHistory() {
+        if (currentUser == null) {
+            if (viewListener != null) {
+                viewListener.onShowMessage("Ошибка", "Пользователь не выбран", true);
+            }
+            return;
+        }
+
+        try {
+            List<TestHistoryEntry> history = testService.getTestHistory(currentUser.getId());
+            if (viewListener != null) {
+                viewListener.onShowTestHistory(history);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            if (viewListener != null) {
+                viewListener.onShowMessage("Ошибка", "Не удалось загрузить историю", true);
+            }
+        }
     }
 }

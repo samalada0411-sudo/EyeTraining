@@ -8,7 +8,6 @@ import java.util.List;
 
 public class AnswerDAO {
 
-    // Сохранить ответ пользователя
     public void save(Answer answer) throws SQLException {
         String sql = "INSERT INTO user_answers (user_id, question_id, answer_value, answer_date) " +
                 "VALUES (?, ?, ?, ?)";
@@ -28,7 +27,6 @@ public class AnswerDAO {
         }
     }
 
-    // Получить все ответы пользователя
     public List<Answer> findByUserId(int userId) throws SQLException {
         List<Answer> answers = new ArrayList<>();
         String sql = "SELECT * FROM user_answers WHERE user_id = ?";
@@ -45,7 +43,15 @@ public class AnswerDAO {
         return answers;
     }
 
-    // Проверить, проходил ли пользователь тест сегодня
+    public void deleteByUserId(int userId) throws SQLException {
+        String sql = "DELETE FROM user_answers WHERE user_id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, userId);
+            pstmt.executeUpdate();
+        }
+    }
+
     public boolean hasTestToday(int userId) throws SQLException {
         String sql = "SELECT COUNT(*) FROM user_answers WHERE user_id = ? AND answer_date = CURRENT_DATE";
         try (Connection conn = DatabaseManager.getConnection();

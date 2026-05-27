@@ -32,22 +32,6 @@ public class QuestionDAO {
         return questions;
     }
 
-    public List<Question> findByCategory(String category) throws SQLException {
-        List<Question> questions = new ArrayList<>();
-        String sql = "SELECT * FROM questions WHERE category = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setString(1, category);
-            ResultSet rs = pstmt.executeQuery();
-
-            while (rs.next()) {
-                questions.add(mapResultSetToQuestion(rs));
-            }
-        }
-        return questions;
-    }
-
     public Question findById(int id) throws SQLException {
         String sql = "SELECT * FROM questions WHERE id = ?";
         try (Connection conn = DatabaseManager.getConnection();

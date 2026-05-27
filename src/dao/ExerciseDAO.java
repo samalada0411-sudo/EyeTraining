@@ -8,21 +8,6 @@ import java.util.List;
 
 public class ExerciseDAO {
 
-    // Получить все упражнения
-    public List<Exercise> findAll() throws SQLException {
-        List<Exercise> exercises = new ArrayList<>();
-        String sql = "SELECT * FROM exercises";
-        try (Connection conn = DatabaseManager.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-
-            while (rs.next()) {
-                exercises.add(mapResultSetToExercise(rs));
-            }
-        }
-        return exercises;
-    }
-
     // Найти упражнение по ID
     public Exercise findById(int id) throws SQLException {
         String sql = "SELECT * FROM exercises WHERE id = ?";
@@ -47,23 +32,6 @@ public class ExerciseDAO {
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setString(1, type);
-            ResultSet rs = pstmt.executeQuery();
-
-            while (rs.next()) {
-                exercises.add(mapResultSetToExercise(rs));
-            }
-        }
-        return exercises;
-    }
-
-    // Найти упражнения по сложности
-    public List<Exercise> findByDifficulty(int difficulty) throws SQLException {
-        List<Exercise> exercises = new ArrayList<>();
-        String sql = "SELECT * FROM exercises WHERE difficulty = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setInt(1, difficulty);
             ResultSet rs = pstmt.executeQuery();
 
             while (rs.next()) {

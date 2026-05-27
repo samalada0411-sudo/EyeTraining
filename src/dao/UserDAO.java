@@ -23,7 +23,6 @@ public class UserDAO {
             pstmt.setString(6, user.getVisionAcuity());
             pstmt.executeUpdate();
 
-            // Получаем сгенерированный ID
             ResultSet rs = pstmt.getGeneratedKeys();
             if (rs.next()) {
                 user.setId(rs.getInt(1));
@@ -79,7 +78,7 @@ public class UserDAO {
         }
     }
 
-    // Удалить пользователя
+    // Удалить пользователя по ID
     public void delete(int id) throws SQLException {
         String sql = "DELETE FROM users WHERE id = ?";
         try (Connection conn = DatabaseManager.getConnection();
@@ -89,7 +88,7 @@ public class UserDAO {
         }
     }
 
-    // превращает ResultSet в объект User
+    // Вспомогательный метод: превращает ResultSet в объект User
     private User mapResultSetToUser(ResultSet rs) throws SQLException {
         User user = new User();
         user.setId(rs.getInt("id"));

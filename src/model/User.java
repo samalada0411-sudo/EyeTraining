@@ -11,12 +11,19 @@ public class User {
 
     public User() {}
 
+    public User(String name, int age) {
+        this.name = name;
+        this.age = age;
+        this.workHours = 0;
+    }
+
     public User(String name, int age, int workHours) {
         this.name = name;
         this.age = age;
         this.workHours = workHours;
     }
 
+    // Геттеры и сеттеры
     public int getId() { return id; }
     public void setId(int id) { this.id = id; }
 

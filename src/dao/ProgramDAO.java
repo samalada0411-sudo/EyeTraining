@@ -3,8 +3,6 @@ package dao;
 import model.Program;
 import model.DatabaseManager;
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
 
 public class ProgramDAO {
 
@@ -29,39 +27,6 @@ public class ProgramDAO {
         }
     }
 
-    // НАЙТИ ПРОГРАММУ ПО ID (ДОБАВЛЕННЫЙ МЕТОД)
-    public Program findById(int id) throws SQLException {
-        String sql = "SELECT * FROM user_programs WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setInt(1, id);
-            ResultSet rs = pstmt.executeQuery();
-
-            if (rs.next()) {
-                return mapResultSetToProgram(rs);
-            }
-        }
-        return null;
-    }
-
-    // Найти все программы пользователя
-    public List<Program> findByUserId(int userId) throws SQLException {
-        List<Program> programs = new ArrayList<>();
-        String sql = "SELECT * FROM user_programs WHERE user_id = ? ORDER BY generation_date DESC";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setInt(1, userId);
-            ResultSet rs = pstmt.executeQuery();
-
-            while (rs.next()) {
-                programs.add(mapResultSetToProgram(rs));
-            }
-        }
-        return programs;
-    }
-
     // Найти последнюю программу пользователя
     public Program findLatestByUserId(int userId) throws SQLException {
         String sql = "SELECT * FROM user_programs WHERE user_id = ? ORDER BY generation_date DESC LIMIT 1";
@@ -78,16 +43,6 @@ public class ProgramDAO {
         return null;
     }
 
-    // Удалить программу
-    public void delete(int id) throws SQLException {
-        String sql = "DELETE FROM user_programs WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setInt(1, id);
-            pstmt.executeUpdate();
-        }
-    }
-
     private Program mapResultSetToProgram(ResultSet rs) throws SQLException {
         Program program = new Program();
         program.setId(rs.getInt("id"));
@@ -97,5 +52,19 @@ public class ProgramDAO {
         program.setCustom(rs.getBoolean("is_custom"));
         program.setTotalDuration(rs.getInt("total_duration"));
         return program;
+    }
+    public Program findById(int id) throws SQLException {
+        String sql = "SELECT * FROM user_programs WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, id);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                return mapResultSetToProgram(rs);
+            }
+        }
+        return null;
     }
 }
