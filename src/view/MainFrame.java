@@ -172,6 +172,14 @@ public class MainFrame extends JFrame implements MainController.ViewListener {
             int age = (Integer) ageSpinner.getValue();
             controller.addUser(name, age);
             loadUsers();
+
+            if (!users.isEmpty()) {
+                User newUser = users.get(users.size() - 1);
+                userCombo.setSelectedIndex(users.size() - 1);
+                controller.setCurrentUser(newUser);
+                testPanel.clearAnswers();
+                programPanel.showEmptyState();
+            }
         }
     }
 
@@ -203,7 +211,7 @@ public class MainFrame extends JFrame implements MainController.ViewListener {
 
     @Override
     public void onShowPresetProgramDetails(String programName, List<MainController.PresetExerciseInfo> exercises) {
-        presetPanel.showProgramDetails(programName, exercises);
+
     }
 
     @Override

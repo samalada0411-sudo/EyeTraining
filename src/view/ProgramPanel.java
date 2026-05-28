@@ -1,6 +1,7 @@
 package view;
 
 import controller.MainController;
+import service.WorkoutPlayer;
 import view.components.RoundedPanel;
 import view.components.StyledButton;
 import javax.swing.*;
@@ -10,11 +11,16 @@ import java.util.List;
 public class ProgramPanel extends JPanel {
 
     private MainController controller;
-    private JButton generateButton;
+    private JButton startWorkoutButton;
+    private JButton stopWorkoutButton;
     private JPanel programContentPanel;
     private JLabel loadLevelLabel;
     private JLabel totalDurationLabel;
     private JLabel scoreLabel;
+    private JLabel timerLabel;
+
+    private List<MainController.ExerciseData> currentExercises;
+    private WorkoutPlayer workoutPlayer;
 
     public ProgramPanel() {
         setLayout(new BorderLayout());
@@ -62,25 +68,87 @@ public class ProgramPanel extends JPanel {
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
         scrollPane.getViewport().setBackground(Colors.PANEL_BACKGROUND);
 
-        showEmptyState();
-
-        JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 10));
         bottomPanel.setOpaque(false);
         bottomPanel.setBorder(BorderFactory.createEmptyBorder(20, 0, 0, 0));
 
-        generateButton = new StyledButton("Сгенерировать новую программу", Colors.PRIMARY, Colors.PRIMARY.darker(), Colors.PRIMARY.darker().darker());
-        generateButton.setPreferredSize(new Dimension(250, 45));
-        generateButton.addActionListener(e -> {
-            if (controller != null) {
-                controller.generateNewProgram();
-            }
-        });
+        startWorkoutButton = new StyledButton("Начать тренировку", Colors.ACCENT, Colors.ACCENT.darker(), Colors.ACCENT.darker().darker());
+        startWorkoutButton.setPreferredSize(new Dimension(160, 40));
+        startWorkoutButton.addActionListener(e -> startWorkout());
+        startWorkoutButton.setEnabled(false);
 
-        bottomPanel.add(generateButton);
+        stopWorkoutButton = new StyledButton("Остановить", Colors.WARNING, Colors.WARNING.darker(), Colors.WARNING.darker().darker());
+        stopWorkoutButton.setPreferredSize(new Dimension(140, 40));
+        stopWorkoutButton.addActionListener(e -> stopWorkout());
+        stopWorkoutButton.setEnabled(false);
+
+        timerLabel = new JLabel("Готов к тренировке");
+        timerLabel.setFont(Colors.NORMAL_FONT);
+        timerLabel.setForeground(Colors.PRIMARY);
+
+        bottomPanel.add(startWorkoutButton);
+        bottomPanel.add(stopWorkoutButton);
+        bottomPanel.add(timerLabel);
 
         add(topPanel, BorderLayout.NORTH);
         add(scrollPane, BorderLayout.CENTER);
         add(bottomPanel, BorderLayout.SOUTH);
+
+        showEmptyState();
+    }
+
+    private void startWorkout() {
+        if (currentExercises != null && !currentExercises.isEmpty()) {
+            startWorkoutButton.setEnabled(false);
+            stopWorkoutButton.setEnabled(true);
+
+            workoutPlayer = new WorkoutPlayer();
+
+            workoutPlayer.startWorkout(currentExercises, new WorkoutPlayer.WorkoutListener() {
+                @Override
+                public void onExerciseStart(String name, int order, int total) {
+                    SwingUtilities.invokeLater(() -> {
+                        timerLabel.setText("Упражнение " + order + "/" + total + ": " + name);
+                    });
+                }
+
+                @Override
+                public void onExerciseProgress(int secondsLeft, int totalSeconds) {
+                    SwingUtilities.invokeLater(() -> {
+                        timerLabel.setText("Осталось: " + secondsLeft + " сек");
+                    });
+                }
+
+                @Override
+                public void onExerciseComplete(String name) {
+                    SwingUtilities.invokeLater(() -> {
+                        timerLabel.setText("Выполнено: " + name);
+                    });
+                }
+
+                @Override
+                public void onWorkoutComplete() {
+                    SwingUtilities.invokeLater(() -> {
+                        timerLabel.setText("Тренировка завершена! Отлично!");
+                        startWorkoutButton.setEnabled(true);
+                        stopWorkoutButton.setEnabled(false);
+                        if (workoutPlayer != null) {
+                            workoutPlayer.close();
+                        }
+                    });
+                }
+            });
+        }
+    }
+
+    private void stopWorkout() {
+        if (workoutPlayer != null) {
+            workoutPlayer.stopWorkout();
+            workoutPlayer.close();
+            startWorkoutButton.setEnabled(true);
+            stopWorkoutButton.setEnabled(false);
+            timerLabel.setText("Тренировка остановлена");
+        }
     }
 
     public void setController(MainController controller) {
@@ -89,6 +157,11 @@ public class ProgramPanel extends JPanel {
 
     public void showEmptyState() {
         programContentPanel.removeAll();
+        currentExercises = null;
+
+        if (startWorkoutButton != null) {
+            startWorkoutButton.setEnabled(false);
+        }
 
         JPanel emptyPanel = new RoundedPanel(15, Colors.SECONDARY);
         emptyPanel.setLayout(new BoxLayout(emptyPanel, BoxLayout.Y_AXIS));
@@ -114,12 +187,14 @@ public class ProgramPanel extends JPanel {
         loadLevelLabel.setForeground(Colors.TEXT_SECONDARY);
         totalDurationLabel.setText("Общая длительность: 0 сек");
         scoreLabel.setText(" ");
+        timerLabel.setText("Готов к тренировке");
 
         programContentPanel.revalidate();
         programContentPanel.repaint();
     }
 
     public void displayProgram(List<MainController.ExerciseData> exercises, String loadLevel, int totalDuration, int totalScore) {
+        this.currentExercises = exercises;
         programContentPanel.removeAll();
 
         String levelText;
@@ -141,6 +216,10 @@ public class ProgramPanel extends JPanel {
         loadLevelLabel.setForeground(levelColor);
         totalDurationLabel.setText("Общая длительность: " + totalDuration + " сек (" + (totalDuration / 60) + " мин)");
         scoreLabel.setText("Общий балл: " + totalScore);
+
+        if (startWorkoutButton != null) {
+            startWorkoutButton.setEnabled(true);
+        }
 
         JLabel exercisesTitle = new JLabel("Упражнения:");
         exercisesTitle.setFont(Colors.TITLE_FONT);
@@ -178,7 +257,7 @@ public class ProgramPanel extends JPanel {
         nameLabel.setFont(Colors.TITLE_FONT);
         nameLabel.setForeground(Colors.TEXT_PRIMARY);
 
-        JLabel typeLabel = new JLabel(ex.type + " | " + ex.duration + " секунд");
+        JLabel typeLabel = new JLabel(ex.type + " | " + ex.duration + " сек");
         typeLabel.setFont(Colors.SMALL_FONT);
         typeLabel.setForeground(Colors.TEXT_SECONDARY);
 
@@ -203,7 +282,7 @@ public class ProgramPanel extends JPanel {
         descLabel.setFont(Colors.SMALL_FONT);
         descLabel.setForeground(Colors.TEXT_SECONDARY);
 
-        JLabel howLabel = new JLabel(ex.howToDo);
+        JLabel howLabel = new JLabel("Как делать: " + ex.howToDo);
         howLabel.setFont(Colors.SMALL_FONT);
         howLabel.setForeground(Colors.TEXT_SECONDARY);
 
@@ -216,10 +295,11 @@ public class ProgramPanel extends JPanel {
     }
 
     private String getDifficultyStars(int difficulty) {
-        if (difficulty == 1) return "*";
-        if (difficulty == 2) return "**";
-        if (difficulty == 3) return "***";
-        return String.valueOf(difficulty);
+        StringBuilder stars = new StringBuilder();
+        for (int i = 0; i < difficulty; i++) {
+            stars.append("*");
+        }
+        return stars.toString();
     }
 
     private Color getDifficultyColor(int difficulty) {

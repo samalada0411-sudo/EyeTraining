@@ -207,75 +207,6 @@ public class MainController {
         }
     }
 
-    public void generateNewProgram() {
-        if (currentUser == null) {
-            if (viewListener != null) {
-                viewListener.onShowMessage("Ошибка", "Пользователь не выбран", true);
-            }
-            return;
-        }
-
-        try {
-            TestService.TestResult result = testService.getUserTestResult(currentUser.getId());
-
-            if (result == null || !result.hasAnswers()) {
-                if (viewListener != null) {
-                    viewListener.onShowMessage("Нет теста", "Сначала пройдите тест-опросник", true);
-                }
-                return;
-            }
-
-            Program program = programGenerator.generateProgram(currentUser.getId(), result);
-            List<ExerciseData> exercises = programGenerator.getProgramExercisesForDisplay(program.getId());
-
-            if (viewListener != null && exercises != null) {
-                viewListener.onProgramDisplayed(
-                        exercises,
-                        result.getLoadLevel(),
-                        program.getTotalDuration(),
-                        result.getTotalScore()
-                );
-                viewListener.onShowMessage("Готово", "Новая программа сгенерирована", false);
-            }
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-            if (viewListener != null) {
-                viewListener.onShowMessage("Ошибка", "Не удалось сгенерировать программу", true);
-            }
-        }
-    }
-
-    public void selectPresetProgram(String programName) {
-        if (currentUser == null) {
-            if (viewListener != null) {
-                viewListener.onShowMessage("Ошибка", "Пользователь не выбран", true);
-            }
-            return;
-        }
-
-        try {
-            Program program = programGenerator.generatePresetProgram(currentUser.getId(), programName);
-            List<ExerciseData> exercises = programGenerator.getProgramExercisesForDisplay(program.getId());
-
-            if (viewListener != null && exercises != null) {
-                viewListener.onProgramDisplayed(
-                        exercises,
-                        "medium",
-                        program.getTotalDuration(),
-                        50
-                );
-                viewListener.onShowMessage("Готово", "Программа \"" + programName + "\" добавлена", false);
-            }
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-            if (viewListener != null) {
-                viewListener.onShowMessage("Ошибка", "Не удалось создать программу", true);
-            }
-        }
-    }
-
     public void showPresetProgramDetails(String programName) {
         try {
             List<PresetExerciseInfo> exercises = programGenerator.getPresetProgramDetails(programName);
@@ -308,6 +239,49 @@ public class MainController {
             if (viewListener != null) {
                 viewListener.onShowMessage("Ошибка", "Не удалось загрузить историю", true);
             }
+        }
+    }
+
+    public void startPresetWorkout(String programName) {
+        try {
+            List<PresetExerciseInfo> presetExercises = programGenerator.getPresetProgramDetails(programName);
+
+            // Конвертируем PresetExerciseInfo в ExerciseData для отображения и тренировки
+            List<ExerciseData> exercises = new ArrayList<>();
+            for (PresetExerciseInfo pe : presetExercises) {
+                exercises.add(new ExerciseData(
+                        pe.name,
+                        "Готовое упражнение",
+                        pe.instruction,
+                        30, // стандартная длительность
+                        "preset",
+                        1
+                ));
+            }
+
+            if (viewListener != null && !exercises.isEmpty()) {
+                viewListener.onProgramDisplayed(
+                        exercises,
+                        "medium",
+                        exercises.size() * 30,
+                        50
+                );
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            if (viewListener != null) {
+                viewListener.onShowMessage("Ошибка", "Не удалось загрузить программу", true);
+            }
+        }
+    }
+
+    public List<PresetExerciseInfo> getPresetProgramDetails(String programName) {
+        try {
+            return programGenerator.getPresetProgramDetails(programName);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return new java.util.ArrayList<>();
         }
     }
 }
